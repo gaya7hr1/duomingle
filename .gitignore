@@ -1,0 +1,74 @@
+# ----------------------------
+# Dependencies
+# ----------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ----------------------------
+# Build outputs
+# ----------------------------
+.next/
+out/
+build/
+dist/
+
+# ----------------------------
+# Logs
+# ----------------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ----------------------------
+# Testing
+# ----------------------------
+coverage/
+
+# ----------------------------
+# Environment variables
+# ----------------------------
+.env
+.env.*
+!.env.example
+
+# ----------------------------
+# System files
+# ----------------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# TypeScript
+# ----------------------------
+*.tsbuildinfo
+
+
+
+# ----------------------------
+# Framework / Hosting
+# ----------------------------
+.vercel/
+
+# ----------------------------
+# Optional (your choice)
+# ----------------------------
+
+# Ignore lock files (if you prefer)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
