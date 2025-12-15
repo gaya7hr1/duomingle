@@ -41,6 +41,21 @@ function getSocketsForUser(userId) {
 let waitingUsers = []; // { userId }[]
 let matches = {}; // roomId -> { user1, user2 }
 
+// Helper to find room for a user
+function getRoomForUser(userId) {
+  for (const [roomId, match] of Object.entries(matches)) {
+    if (match.user1 === userId || match.user2 === userId) {
+      return { roomId, match };
+    }
+  }
+  return null;
+}
+
+// Helper to remove match
+function removeMatch(roomId) {
+  delete matches[roomId];
+}
+
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
@@ -62,10 +77,42 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("receive-message", message);
   });
 
+  socket.on("leave-room", (roomId) => {
+    if (!roomId) return;
+    const uid = socket.data.userId;
+    if (!uid) return;
+
+    const roomInfo = getRoomForUser(uid);
+    if (roomInfo && roomInfo.roomId === roomId) {
+      const { match } = roomInfo;
+      const partnerId = match.user1 === uid ? match.user2 : match.user1;
+      const partnerSockets = getSocketsForUser(partnerId);
+      partnerSockets.forEach((sid) => io.to(sid).emit("partner-left"));
+      removeMatch(roomId);
+      console.log("User left room:", roomId, "notified partner");
+    }
+    socket.leave(roomId);
+  });
+
   socket.on("disconnect", () => {
     const uid = socket.data.userId;
-    if (uid) removeSocketForUser(uid, socket.id);
-    console.log("Socket disconnected:", socket.id, "userId:", uid);
+    if (uid) {
+      removeSocketForUser(uid, socket.id);
+      console.log("Socket disconnected:", socket.id, "userId:", uid);
+
+      // Check if user was in a match
+      const roomInfo = getRoomForUser(uid);
+      if (roomInfo) {
+        const { roomId, match } = roomInfo;
+        const partnerId = match.user1 === uid ? match.user2 : match.user1;
+        const partnerSockets = getSocketsForUser(partnerId);
+        partnerSockets.forEach((sid) => io.to(sid).emit("partner-left"));
+        removeMatch(roomId);
+        console.log("Notified partner and removed match for room:", roomId);
+      }
+    } else {
+      console.log("Socket disconnected:", socket.id, "no userId");
+    }
   });
 });
 
