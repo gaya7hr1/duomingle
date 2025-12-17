@@ -3,10 +3,19 @@ import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
 import { v4 as uuid } from "uuid";
+import rateLimit from "express-rate-limit";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting: 10 requests per 15 minutes per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+});
+app.use("/join-queue", limiter);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -38,7 +47,7 @@ function getSocketsForUser(userId) {
   return set ? Array.from(set) : [];
 }
 
-let waitingUsers = []; // { userId }[]
+let waitingUsers = []; // { userId, interests: [] }[]
 let matches = {}; // roomId -> { user1, user2 }
 
 // Helper to find room for a user
@@ -68,13 +77,16 @@ io.on("connection", (socket) => {
   socket.on("join-room", (roomId) => {
     if (!roomId) return;
     socket.join(roomId);
+    socket.data.roomId = roomId; // Store roomId in socket data
     console.log(`${socket.id} joined room ${roomId}`);
   });
 
   socket.on("send-message", ({ roomId, message }) => {
     if (!roomId || typeof message !== "string") return;
-    console.log(`Message in ${roomId} from ${socket.id}: ${message}`);
-    socket.to(roomId).emit("receive-message", message);
+    const trimmed = message.trim();
+    if (trimmed.length === 0 || trimmed.length > 500) return; // limit message length
+    console.log(`Message in ${roomId} from ${socket.id}: ${trimmed}`);
+    socket.to(roomId).emit("receive-message", trimmed);
   });
 
   socket.on("leave-room", (roomId) => {
@@ -92,13 +104,13 @@ io.on("connection", (socket) => {
       console.log("User left room:", roomId, "notified partner");
     }
     socket.leave(roomId);
+    socket.data.roomId = null;
   });
 
   socket.on("disconnect", () => {
     const uid = socket.data.userId;
     if (uid) {
       removeSocketForUser(uid, socket.id);
-      console.log("Socket disconnected:", socket.id, "userId:", uid);
 
       // Check if user was in a match
       const roomInfo = getRoomForUser(uid);
@@ -119,13 +131,31 @@ io.on("connection", (socket) => {
 app.post("/join-queue", (req, res) => {
   console.log("POST /join-queue body:", req.body);
   try { 
-    const { userId, interests } = req.body ?? {}; // never sent intrests from frontend yet
-    if (!userId) return res.status(400).json({ error: "userId required" });
+    const { userId, interests } = req.body ?? {};
+    if (!userId || typeof userId !== "string" || userId.length === 0) return res.status(400).json({ error: "valid userId required" });
+    if (!Array.isArray(interests)) return res.status(400).json({ error: "interests must be an array" });
 
     // drop waiting users without active sockets
     waitingUsers = waitingUsers.filter((w) => getSocketsForUser(w.userId).length > 0);
 
-    const partnerIndex = waitingUsers.findIndex((w) => w && w.userId && w.userId !== userId);
+    // Find partner with common interests
+    let partnerIndex = -1;
+    for (let i = 0; i < waitingUsers.length; i++) {
+      const w = waitingUsers[i];
+      if (w.userId !== userId) {
+        const common = interests.filter(interest => w.interests.includes(interest));
+        if (common.length > 0) {
+          partnerIndex = i;
+          break;
+        }
+      }
+    }
+
+    // If no partner with common interests, take any
+    if (partnerIndex === -1) {
+      partnerIndex = waitingUsers.findIndex((w) => w && w.userId && w.userId !== userId);
+    }
+
     if (partnerIndex === -1) {
       waitingUsers.push({ userId, interests });
       console.log("User queued:", userId, "waitingCount:", waitingUsers.length);
@@ -151,7 +181,7 @@ app.post("/join-queue", (req, res) => {
 
     return res.json({ status: "matched", roomId });
   } catch (err) {
-    console.error("Error in /join-queue:", err); // ??
+    console.error("Error in /join-queue:", err);
     return res.status(500).json({ error: "internal server error" });
   }
 });
