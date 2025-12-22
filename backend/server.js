@@ -215,3 +215,7 @@ app.post("/join-queue", (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => console.log(`Backend + Socket running on http://localhost:${PORT}`));
+app.get("/", (req, res) => {
+  res.send("backend is running ");
+});
+
