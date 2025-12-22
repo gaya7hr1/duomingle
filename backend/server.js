@@ -16,11 +16,15 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
 });
 app.use("/join-queue", limiter);
+const allowedOrigins = [
+  "https://duomingle.onrender.com",
+  "http://localhost:3000"
+];
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
     credentials: true,
