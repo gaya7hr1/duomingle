@@ -29,9 +29,9 @@ export default function WaitingClient({ userId }: { userId: string }) {
   }, [userId, router]);
 
   return (
-    <div className="p-6 text-center">
-      <h1 className="text-2xl font-bold mb-4">Waiting for a match...</h1>
-      <p className="text-gray-600">User ID: {userId}</p>
+    <div className="p-6 text-center bg-[#2b2d31] min-h-screen">
+      <h1 className="text-2xl font-bold mb-4 text-white">Waiting for a match...</h1>
+      <p className="text-gray-400">User ID: {userId}</p>
     </div>
   );
 }

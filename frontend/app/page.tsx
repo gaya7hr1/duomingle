@@ -1,16 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import socket from "./socket";
 
 const interests = ["Sports", "Music", "Movies", "Books", "Travel", "Technology", "Food", "Gaming"];
 
+interface UserProfile {
+  nickname: string;
+  imageUrl: string;
+  interests: string[];
+}
+
 export default function HomePage() {
   const router = useRouter();
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const searchParams = useSearchParams();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
+    const saved = localStorage.getItem("userProfile");
+    if (saved) {
+      setProfile(JSON.parse(saved));
+    }
+
     const handleMatched = ({ roomId }: { roomId: string }) => {
       router.push(`/chatroom/${roomId}`);
     };
@@ -20,17 +32,15 @@ export default function HomePage() {
     };
   }, [router]);
 
-  const handleInterestChange = (interest: string, checked: boolean) => {
-    if (checked) {
-      setSelectedInterests(prev => [...prev, interest]);
-    } else {
-      setSelectedInterests(prev => prev.filter(i => i !== interest));
+  useEffect(() => {
+    if (profile && searchParams.get("skip") === "true") {
+      startChat();
     }
-  };
+  }, [profile, searchParams]);
 
   const startChat = async () => {
-    if (selectedInterests.length === 0) {
-      alert("Please select at least one interest.");
+    if (!profile) {
+      alert("Please set your profile first.");
       return;
     }
 
@@ -47,12 +57,12 @@ export default function HomePage() {
       });
     }
 
-    socket.emit("register", userId);
+    socket.emit("register", { userId, ...profile });
 
     const res = await fetch("http://localhost:3001/join-queue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, interests: selectedInterests }),
+      body: JSON.stringify({ userId, interests: profile.interests }),
     });
 
     const data = await res.json();
@@ -64,22 +74,26 @@ export default function HomePage() {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Select Your Interests</h1>
-      <div className="mb-4">
-        {interests.map(interest => (
-          <label key={interest} className="block">
-            <input
-              type="checkbox"
-              checked={selectedInterests.includes(interest)}
-              onChange={(e) => handleInterestChange(interest, e.target.checked)}
-              className="mr-2"
-            />
-            {interest}
-          </label>
-        ))}
+    <div className="p-6 max-w-md mx-auto text-center bg-[#2b2d31] min-h-screen">
+      <h1 className="text-3xl font-bold mb-4 text-white">Duomingle</h1>
+      <p className="mb-6 text-gray-300">Anonymous random chat with interest matching</p>
+      {profile ? (
+        <div className="mb-4 bg-[#36393f] p-4 rounded-lg">
+          <img src={profile.imageUrl || "/default-avatar.png"} alt="Profile" className="w-16 h-16 rounded-full mx-auto mb-2" />
+          <p className="font-semibold text-white">{profile.nickname}</p>
+          <p className="text-sm text-gray-400">Interests: {profile.interests.join(", ")}</p>
+        </div>
+      ) : (
+        <p className="mb-4 text-gray-300">Set up your profile to start chatting!</p>
+      )}
+      <div className="space-y-2">
+        <button onClick={() => router.push("/profile")} className="bg-[#5865f2] hover:bg-[#4752c4] text-white px-4 py-2 rounded w-full transition">
+          {profile ? "Edit Profile" : "Set Profile"}
+        </button>
+        <button onClick={startChat} className="bg-[#57f287] hover:bg-[#4ade80] text-black px-4 py-2 rounded w-full transition" disabled={!profile}>
+          Start Chat
+        </button>
       </div>
-      <button onClick={startChat} className="bg-blue-500 text-white px-4 py-2 rounded">Start Chat</button>
     </div>
   );
 }

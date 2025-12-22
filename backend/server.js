@@ -68,10 +68,13 @@ function removeMatch(roomId) {
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  socket.on("register", (userId) => {
+  socket.on("register", (data) => {
+    const { userId, nickname, imageUrl } = data;
     socket.data.userId = userId;
+    socket.data.nickname = nickname;
+    socket.data.imageUrl = imageUrl;
     addSocketForUser(userId, socket.id);
-    console.log("Registered user:", userId, "->", socket.id);
+    console.log("Registered user:", userId, nickname || "Anonymous", "->", socket.id);
   });
 
   socket.on("join-room", (roomId) => {
@@ -79,6 +82,22 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     socket.data.roomId = roomId; // Store roomId in socket data
     console.log(`${socket.id} joined room ${roomId}`);
+
+    // Notify partner
+    const match = matches[roomId];
+    if (match) {
+      const partnerId = match.user1 === socket.data.userId ? match.user2 : match.user1;
+      const partnerSockets = getSocketsForUser(partnerId);
+      partnerSockets.forEach((sid) => {
+        const partnerSocket = io.sockets.sockets.get(sid);
+        if (partnerSocket && partnerSocket.data.roomId === roomId) {
+          io.to(sid).emit("partner-joined", {
+            nickname: socket.data.nickname,
+            imageUrl: socket.data.imageUrl
+          });
+        }
+      });
+    }
   });
 
   socket.on("send-message", ({ roomId, message }) => {
@@ -176,8 +195,16 @@ app.post("/join-queue", (req, res) => {
 
     console.log("Matched", userId, "with", partner.userId, "room", roomId, "partnerSockets:", partnerSockets.length, "userSockets:", userSocketsForUser.length);
 
-    partnerSockets.forEach((sid) => io.to(sid).emit("matched", { roomId }));
-    userSocketsForUser.forEach((sid) => io.to(sid).emit("matched", { roomId }));
+    partnerSockets.forEach((sid) => {
+      const partnerSocket = io.sockets.sockets.get(sid);
+      const partnerData = partnerSocket ? { nickname: partnerSocket.data.nickname, imageUrl: partnerSocket.data.imageUrl } : {};
+      io.to(sid).emit("matched", { roomId, partner: partnerData });
+    });
+    userSocketsForUser.forEach((sid) => {
+      const userSocket = io.sockets.sockets.get(sid);
+      const userData = userSocket ? { nickname: userSocket.data.nickname, imageUrl: userSocket.data.imageUrl } : {};
+      io.to(sid).emit("matched", { roomId, partner: userData });
+    });
 
     return res.json({ status: "matched", roomId });
   } catch (err) {
