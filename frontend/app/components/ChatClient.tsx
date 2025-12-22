@@ -26,9 +26,11 @@ export default function ChatClient({ roomId }: { roomId: string }) {
   }, [messages]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("userProfile");
-    if (saved) {
-      setOwnProfile(JSON.parse(saved));
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem("userProfile");
+      if (saved) {
+        setOwnProfile(JSON.parse(saved));
+      }
     }
 
     if (!socket.connected) socket.connect();

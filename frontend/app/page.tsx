@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import socket from "./socket";
 
@@ -12,15 +12,17 @@ interface UserProfile {
   interests: string[];
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("userProfile");
-    if (saved) {
-      setProfile(JSON.parse(saved));
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem("userProfile");
+      if (saved) {
+        setProfile(JSON.parse(saved));
+      }
     }
 
     const handleMatched = ({ roomId }: { roomId: string }) => {
@@ -44,7 +46,7 @@ export default function HomePage() {
       return;
     }
 
-    const userId = crypto.randomUUID();
+    const userId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9);
 
     if (!socket.connected) {
       await new Promise<void>((resolve) => {
@@ -59,7 +61,7 @@ export default function HomePage() {
 
     socket.emit("register", { userId, ...profile });
 
-    const res = await fetch("http://localhost:3001/join-queue", {
+    const res = await fetch("https://duomingle.onrender.com/join-queue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, interests: profile.interests }),
@@ -79,7 +81,7 @@ export default function HomePage() {
       <p className="mb-6 text-gray-300">Anonymous random chat with interest matching</p>
       {profile ? (
         <div className="mb-4 bg-[#36393f] p-4 rounded-lg">
-          <img src={profile.imageUrl || "/default-avatar.png"} alt="Profile" className="w-16 h-16 rounded-full mx-auto mb-2" />
+          <img src={profile.imageUrl || "/assets/example.jpg"} alt="Profile" className="w-16 h-16 rounded-full mx-auto mb-2" />
           <p className="font-semibold text-white">{profile.nickname}</p>
           <p className="text-sm text-gray-400">Interests: {profile.interests.join(", ")}</p>
         </div>
@@ -95,5 +97,13 @@ export default function HomePage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="p-6 max-w-md mx-auto text-center bg-[#2b2d31] min-h-screen"><h1 className="text-3xl font-bold mb-4 text-white">Loading...</h1></div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }

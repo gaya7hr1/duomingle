@@ -20,9 +20,11 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem("userProfile");
-    if (saved) {
-      setProfile(JSON.parse(saved));
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem("userProfile");
+      if (saved) {
+        setProfile(JSON.parse(saved));
+      }
     }
   }, []);
 
